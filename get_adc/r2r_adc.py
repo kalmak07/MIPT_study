@@ -2,20 +2,20 @@ import RPi.GPIO as GPIO
 import time
 
 class R2R_ADC:
-    def __init__(self, dynamic_range, compare_time = 0.01):
+    def __init__(self, dynamic_range, compare_time=0.01):
         self.dynamic_range = dynamic_range
         self.compare_time = compare_time
         self.cur_res = 0
 
-        self.bits_gpio = [26,20,19,16,13,12,25,11]
+        self.bits_gpio = [26, 20, 19, 16, 13, 12, 25, 11]
         self.comp_gpio = 21
 
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.bits_gpio, GPIO.OUT, initial = 0)
+        GPIO.setup(self.bits_gpio, GPIO.OUT, initial=0)
         GPIO.setup(self.comp_gpio, GPIO.IN)
 
     def deinit(self):
-        GPIO.output(self.bits_gpio,0)
+        GPIO.output(self.bits_gpio, 0)
         GPIO.cleanup()
 
     def dec_to_bin(self, val):
@@ -27,7 +27,7 @@ class R2R_ADC:
     def seq_get_vlt(self):
         self.cur_res = 0
         self.number_to_dac(0)
-        while (True):
+        while True:
             cmp = GPIO.input(self.comp_gpio)
             if cmp > 0:
                 break
@@ -37,29 +37,19 @@ class R2R_ADC:
                 break
             self.number_to_dac(self.cur_res)
             time.sleep(self.compare_time)
-        return self.cur_res*self.dynamic_range/255.0
-    
+        return self.cur_res * self.dynamic_range / 255.0
+
     def sar_approx_vlt(self):
-        self.cur_res = 0
-        cb = 7
-        time.sleep(self.compare_time)
-        while (cb>=0):
-            cmp = GPIO.input(self.comp_gpio)
-            if cmp > 0:
-                self.cur_res -= 1 << cb
-            else:
-                self.cur_res += 1 << cb
-            if self.cur_res >= 256:
-                self.cur_res = 255
-
-            if self.cur_res < 0:
-                self.cur_res = 0
-
-            cb -= 1
-            self.number_to_dac(self.cur_res)
+        code = 0
+        for bit in range(7, -1, -1):
+            test_code = code | (1 << bit)
+            self.number_to_dac(test_code)
             time.sleep(self.compare_time)
-        return self.cur_res*self.dynamic_range/255.0
-
+            cmp = GPIO.input(self.comp_gpio)
+            if cmp == 0:
+                code = test_code
+        self.cur_res = code
+        return code * self.dynamic_range / 255.0
 
 
 if __name__ == "__main__":
